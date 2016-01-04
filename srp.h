@@ -1,22 +1,30 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
 /*
- * Secure Remote Password 6a implementation
+ * Secure Remote Password 6a implementation based on mbedtls.
+ *
+ * Copyright (c) 2015 Dieter Wimberger
+ * https://github.com/dwimberger/mbedtls-csrp
+ * 
+ * Derived from:
  * Copyright (c) 2010 Tom Cocagne. All rights reserved.
  * https://github.com/cocagne/csrp
  *
  * The MIT License (MIT)
- * 
- * Copyright (c) 2013 Tom Cocagne
- * 
+ *
+ * Copyright (c) 2015 Tom Cocagne, Dieter Wimberger
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
  * the Software without restriction, including without limitation the rights to
  * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
  * of the Software, and to permit persons to whom the Software is furnished to do
  * so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -24,7 +32,7 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
- * 
+ *
  */
 
 /* 
@@ -33,9 +41,9 @@
  *                Protocol version 6a as described by 
  *                http://srp.stanford.edu/design.html
  * 
- * Author:        tom.cocagne@gmail.com (Tom Cocagne)
+ * Author:        tom.cocagne@gmail.com (Tom Cocagne), Dieter Wimberger
  * 
- * Dependencies:  OpenSSL (and Advapi32.lib on Windows)
+ * Dependencies:  mbedtls
  * 
  * Usage:         Refer to test_srp.c for a demonstration
  * 
@@ -57,12 +65,19 @@
 #ifndef SRP_H
 #define SRP_H
 
-
+#define SHA1_DIGEST_LENGTH 20
+#define SHA224_DIGEST_LENGTH 224
+#define SHA256_DIGEST_LENGTH 256
+#define SHA384_DIGEST_LENGTH 384
+#define SHA512_DIGEST_LENGTH 512
+#define BIGNUM	mbedtls_mpi
 struct SRPVerifier;
 struct SRPUser;
 
 typedef enum
 {
+	SRP_NG_512,
+	SRP_NG_768,
     SRP_NG_1024,
     SRP_NG_2048,
     SRP_NG_4096,
@@ -79,12 +94,7 @@ typedef enum
     SRP_SHA512
 } SRP_HashAlgorithm;
 
-
-/* This library will automatically seed the OpenSSL random number generator
- * using cryptographically sound random data on Windows & Linux. If this is
- * undesirable behavior or the host OS does not provide a /dev/urandom file, 
- * this function may be called to seed the random number generator with 
- * alternate data.
+/* This library will automatically seed the mbedtls random number generator.
  *
  * The random data should include at least as many bits of entropy as the
  * largest hash function used by the application. So, for example, if a
@@ -92,9 +102,7 @@ typedef enum
  * bits of entropy.
  * 
  * Passing a null pointer to this function will cause this library to skip
- * seeding the random number generator. This is only legitimate if it is
- * absolutely known that the OpenSSL random number generator has already
- * been sufficiently seeded within the running application.
+ * seeding the random number generator.
  * 
  * Notes: 
  *    * This function is optional on Windows & Linux and mandatory on all
@@ -186,3 +194,6 @@ void                  srp_user_process_challenge( struct SRPUser * usr,
 void                  srp_user_verify_session( struct SRPUser * usr, const unsigned char * bytes_HAMK );
 
 #endif /* Include Guard */
+#ifdef __cplusplus
+}
+#endif
