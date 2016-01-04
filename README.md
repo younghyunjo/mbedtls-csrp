@@ -31,4 +31,10 @@ the authenticated connection. However, successful authentication does
 result in a cryptographically strong shared key that can be used
 for symmetric-key encryption.
 
+Entropy
+-------
+
+You need to take care of entropy to achieve cryptograhically sound random values.
+For real world use, you should change the implementation in init_random() to supply your own seed
+values. Also make sure to add entropy sources to your mbedtls port.
 
