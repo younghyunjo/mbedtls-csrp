@@ -126,6 +126,11 @@ void srp_create_salted_verification_key( SRP_HashAlgorithm alg,
                                          const unsigned char ** bytes_v, int * len_v,
                                          const char * n_hex, const char * g_hex );
 
+void srp_create_B( SRP_HashAlgorithm alg, SRP_NGType ng_type, 
+                                        const unsigned char * bytes_v, int len_v,
+                                        const unsigned char ** bytes_B, int * len_B,
+                                        const unsigned char ** bytes_b, int * len_b,
+                                        const char * n_hex, const char * g_hex );
 
 /* Out: bytes_B, len_B.
  * 

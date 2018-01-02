@@ -646,6 +646,95 @@ void srp_create_salted_verification_key( SRP_HashAlgorithm alg,
 }
 
 
+void srp_create_B( SRP_HashAlgorithm alg, SRP_NGType ng_type, 
+                                        const unsigned char * bytes_v, int len_v,
+                                        const unsigned char ** bytes_B, int * len_B,
+                                        const unsigned char ** bytes_b, int * len_b,
+                                        const char * n_hex, const char * g_hex )
+{
+    BIGNUM *v;
+    v = (mbedtls_mpi *) malloc(sizeof(mbedtls_mpi));
+    mbedtls_mpi_init(v);
+    mbedtls_mpi_read_binary(v, bytes_v, len_v);
+
+    BIGNUM             *B;
+    B = (mbedtls_mpi *) malloc(sizeof(mbedtls_mpi));
+    mbedtls_mpi_init(B);
+    BIGNUM             *b;
+    b = (mbedtls_mpi *) malloc(sizeof(mbedtls_mpi));
+    mbedtls_mpi_init(b);
+
+    BIGNUM             *k    = 0;
+    BIGNUM             *tmp1;
+    tmp1 = (mbedtls_mpi *) malloc(sizeof(mbedtls_mpi));
+    mbedtls_mpi_init(tmp1);
+    BIGNUM             *tmp2;
+    tmp2 = (mbedtls_mpi *) malloc(sizeof(mbedtls_mpi));
+    mbedtls_mpi_init(tmp2);
+    BIGNUM             *tmp3;
+    tmp3 = (mbedtls_mpi *) malloc(sizeof(mbedtls_mpi));
+    mbedtls_mpi_init(tmp3);
+    NGConstant         *ng   = new_ng( ng_type, n_hex, g_hex );
+
+    if( !v || !B || !b || !tmp1 || !tmp2 || !tmp3 || !ng ) {
+       goto cleanup_and_exit;
+    }
+
+    mbedtls_mpi_fill_random( b, 32,
+            &mbedtls_ctr_drbg_random,
+            &ctr_drbg_ctx );
+#ifdef TEST_HAP
+    uint8_t test_b[] = {
+        0xe4, 0x87, 0xcb, 0x59, 0xd3, 0x1a, 0xc5, 0x50,
+        0x47, 0x1e, 0x81, 0xf0, 0x0f, 0x69, 0x28, 0xe0,
+        0x1d, 0xda, 0x08, 0xe9, 0x74, 0xa0, 0x04, 0xf4,
+        0x9e, 0x61, 0xf5, 0xd1, 0x05, 0x28, 0x4d, 0x20};
+    int test_b_len = 32;
+    mbedtls_mpi_read_binary(b, test_b, test_b_len);
+#endif
+
+    k = H_nn_pad(alg, ng->N, ng->g);
+
+    /* B = kv + g^b */
+    mbedtls_mpi_mul_mpi( tmp1, k, v);
+    mbedtls_mpi_exp_mod( tmp2, ng->g, b, ng->N, RR );
+    mbedtls_mpi_add_mpi( tmp3, tmp1, tmp2 );
+    mbedtls_mpi_mod_mpi( B, tmp3, ng->N);
+#ifdef TEST_HAP
+    test_hap_mpi_print("B", B);
+#endif
+
+    *len_B   = mbedtls_mpi_size(B);
+    *bytes_B = malloc( *len_B );
+    if( !*bytes_B )
+    {
+        *len_B = 0;
+        goto cleanup_and_exit;
+    }
+    mbedtls_mpi_write_binary( B, *bytes_B, *len_B );
+
+    *len_b = mbedtls_mpi_size(b);
+    *bytes_b = malloc( *len_b );
+    if ( !*bytes_b )
+    {
+        *len_B = 0;
+        *len_b = 0;
+        free( *bytes_B );
+        goto cleanup_and_exit;
+    }
+    mbedtls_mpi_write_binary( b, *bytes_b, *len_b );
+
+ cleanup_and_exit:
+    mbedtls_mpi_free(b);
+    free(b);
+    mbedtls_mpi_free(tmp1);
+    free(tmp1);
+    mbedtls_mpi_free(tmp2);
+    free(tmp2);
+    mbedtls_mpi_free(tmp3);
+    free(tmp3);
+
+}
 
 /* Out: bytes_B, len_B.
  *
@@ -663,7 +752,7 @@ struct SRPVerifier *  srp_verifier_new( SRP_HashAlgorithm alg, SRP_NGType ng_typ
     BIGNUM *v;
     BIGNUM *A;
 
-	  s = (mbedtls_mpi *) malloc(sizeof(mbedtls_mpi));
+	s = (mbedtls_mpi *) malloc(sizeof(mbedtls_mpi));
     mbedtls_mpi_init(s);
     mbedtls_mpi_read_binary(s, bytes_s, len_s);
     v = (mbedtls_mpi *) malloc(sizeof(mbedtls_mpi));
@@ -811,6 +900,8 @@ struct SRPVerifier *  srp_verifier_new( SRP_HashAlgorithm alg, SRP_NGType ng_typ
     free(tmp1);
     mbedtls_mpi_free(tmp2);
     free(tmp2);
+    mbedtls_mpi_free(tmp3);
+    free(tmp3);
 
     return ver;
 }
