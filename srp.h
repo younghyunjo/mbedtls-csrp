@@ -65,11 +65,11 @@ extern "C" {
 #ifndef SRP_H
 #define SRP_H
 
-#define SHA1_DIGEST_LENGTH 20
-#define SHA224_DIGEST_LENGTH 224
-#define SHA256_DIGEST_LENGTH 256
-#define SHA384_DIGEST_LENGTH 384
-#define SHA512_DIGEST_LENGTH 512
+#define SHA1_DIGEST_LENGTH 32 
+#define SHA224_DIGEST_LENGTH 32
+#define SHA256_DIGEST_LENGTH 32
+#define SHA384_DIGEST_LENGTH 64
+#define SHA512_DIGEST_LENGTH 64
 #define BIGNUM	mbedtls_mpi
 struct SRPVerifier;
 struct SRPUser;
@@ -80,6 +80,7 @@ typedef enum
 	SRP_NG_768,
     SRP_NG_1024,
     SRP_NG_2048,
+    SRP_NG_3072,
     SRP_NG_4096,
     SRP_NG_8192,
     SRP_NG_CUSTOM

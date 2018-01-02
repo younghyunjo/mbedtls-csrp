@@ -47,6 +47,8 @@
 
 #include "srp.h"
 
+//#define TEST_HAP
+
 static int g_initialized = 0;
 static mbedtls_entropy_context entropy_ctx;
 static mbedtls_ctr_drbg_context ctr_drbg_ctx;
@@ -93,6 +95,23 @@ static struct NGHex global_Ng_constants[] = {
    "60279004E57AE6AF874E7303CE53299CCC041C7BC308D82A5698F3A8D0C38271AE35F8E9DB"
    "FBB694B5C803D89F7AE435DE236D525F54759B65E372FCD68EF20FA7111F9E4AFF73",
    "2"
+ },
+ { /* 3072 */
+  "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E08"
+  "8A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B"
+  "302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9"
+  "A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE6"
+  "49286651ECE45B3DC2007CB8A163BF0598DA48361C55D39A69163FA8"
+  "FD24CF5F83655D23DCA3AD961C62F356208552BB9ED529077096966D"
+  "670C354E4ABC9804F1746C08CA18217C32905E462E36CE3BE39E772C"
+  "180E86039B2783A2EC07A28FB5C55DF06F4C52C9DE2BCBF695581718"
+  "3995497CEA956AE515D2261898FA051015728E5A8AAAC42DAD33170D"
+  "04507A33A85521ABDF1CBA64ECFB850458DBEF0A8AEA71575D060C7D"
+  "B3970F85A6E1E4C7ABF5AE8CDB0933D71E8C94E04A25619DCEE3D226"
+  "1AD2EE6BF12FFA06D98A0864D87602733EC86A64521F2B18177B200C"
+  "BBE117577A615D6C770988C0BAD946E208E24FA074E5AB3143DB5BFC"
+  "E0FD108E4B82D120A93AD2CAFFFFFFFFFFFFFFFF",
+   "5"
  },
  { /* 4096 */
    "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E08"
@@ -158,6 +177,35 @@ static struct NGHex global_Ng_constants[] = {
  },
  {0,0} /* null sentinel */
 };
+
+#ifdef TEST_HAP
+void test_hap_array_print(char* tag, unsigned char* buf, int len)
+{
+    printf("%s(len:%d)", tag, len);
+    for (int i=0; i<len; i++) {
+        if (i % 0xf == 0)
+            printf("\n");
+        printf("%02X ", buf[i]);
+    }
+    printf("\n");
+}
+
+void test_hap_mpi_print(char* tag, BIGNUM* x)
+{
+    int len_x = mbedtls_mpi_size(x);
+    unsigned char* num = malloc(len_x);
+    mbedtls_mpi_write_binary(x, num, len_x);
+
+    printf("%s (len:%d)", tag, len_x);
+    for (int i=0; i<len_x; i++) {
+        printf("%02X ", num[i]);
+        if (i % 0xf == 0)
+            printf("\n");
+    }
+    printf("\n");
+    free(num);
+}
+#endif
 
 
 static NGConstant * new_ng( SRP_NGType ng_type, const char * n_hex, const char * g_hex )
@@ -343,6 +391,30 @@ static BIGNUM * H_nn( SRP_HashAlgorithm alg, const BIGNUM * n1, const BIGNUM * n
     return bn;
 }
 
+static BIGNUM * H_nn_pad( SRP_HashAlgorithm alg, const BIGNUM * n1, const BIGNUM * n2 )
+{
+    unsigned char   buff[ SHA512_DIGEST_LENGTH ];
+    int             len_n1 = mbedtls_mpi_size(n1);
+    int             len_n2 = mbedtls_mpi_size(n2);
+    int             nbytes = len_n1 + len_n2 + (len_n1 - len_n2);
+    unsigned char * bin    = (unsigned char *) malloc( nbytes );
+    if (!bin)
+       return 0;
+
+    mbedtls_mpi_write_binary( n1, bin, len_n1 );
+    int i=0;
+    for (i=0; i<len_n1 - len_n2; i++)
+        bin[len_n1 + i] = 0;
+    mbedtls_mpi_write_binary( n2, bin+len_n1+i, len_n2 );
+    hash( alg, bin, nbytes, buff );
+    free(bin);
+    BIGNUM * bn;
+    bn = (mbedtls_mpi *) malloc(sizeof(mbedtls_mpi));
+    mbedtls_mpi_init(bn);
+    mbedtls_mpi_read_binary( bn, buff, hash_length(alg) );
+    return bn;
+}
+
 static BIGNUM * H_ns( SRP_HashAlgorithm alg, const BIGNUM * n, const unsigned char * bytes, int len_bytes )
 {
     unsigned char   buff[ SHA512_DIGEST_LENGTH ];
@@ -375,6 +447,11 @@ static BIGNUM * calculate_x( SRP_HashAlgorithm alg, const BIGNUM * salt, const c
     hash_update( alg, &ctx, password, password_len );
 
     hash_final( alg, &ctx, ucp_hash );
+
+#ifdef TEST_HAP
+    printf("username:%s password:%s\n", username, password);
+    test_hap_array_print("SHA512", ucp_hash, hash_length(alg));
+#endif
 
     return H_ns( alg, salt, ucp_hash, hash_length(alg) );
 }
@@ -528,10 +605,15 @@ void srp_create_salted_verification_key( SRP_HashAlgorithm alg,
 
     init_random(); /* Only happens once */
 
-    mbedtls_mpi_fill_random( s, 32,
+    mbedtls_mpi_fill_random( s, 16,
                      &mbedtls_ctr_drbg_random,
                      &ctr_drbg_ctx );
 
+#ifdef TEST_HAP
+    uint8_t test_salt[16] = {0xbe, 0xb2, 0x53, 0x79, 0xd1, 0xa8, 0x58, 0x1e, 0xb5, 0xa7, 0x27, 0x67, 0x3a, 0x24, 0x41, 0xee};
+    int test_salt_len = 16;
+    mbedtls_mpi_read_binary(s, test_salt, test_salt_len);
+#endif
 
     x = calculate_x( alg, s, username, password, len_password );
 
@@ -608,6 +690,9 @@ struct SRPVerifier *  srp_verifier_new( SRP_HashAlgorithm alg, SRP_NGType ng_typ
     BIGNUM             *tmp2;
     tmp2 = (mbedtls_mpi *) malloc(sizeof(mbedtls_mpi));
     mbedtls_mpi_init(tmp2);
+    BIGNUM             *tmp3;
+    tmp3 = (mbedtls_mpi *) malloc(sizeof(mbedtls_mpi));
+    mbedtls_mpi_init(tmp3);
     int                 ulen = strlen(username) + 1;
     NGConstant         *ng   = new_ng( ng_type, n_hex, g_hex );
     struct SRPVerifier *ver  = 0;
@@ -645,25 +730,48 @@ struct SRPVerifier *  srp_verifier_new( SRP_HashAlgorithm alg, SRP_NGType ng_typ
     mbedtls_mpi_mod_mpi( tmp1, A, ng->N );
     if ( mbedtls_mpi_cmp_int( tmp1, 0 )  != 0)
     {
-        mbedtls_mpi_fill_random( b, 256,
+        mbedtls_mpi_fill_random( b, 32,
                      &mbedtls_ctr_drbg_random,
                      &ctr_drbg_ctx );
+#ifdef TEST_HAP
+        uint8_t test_b[] = {
+            0xe4, 0x87, 0xcb, 0x59, 0xd3, 0x1a, 0xc5, 0x50,
+            0x47, 0x1e, 0x81, 0xf0, 0x0f, 0x69, 0x28, 0xe0,
+            0x1d, 0xda, 0x08, 0xe9, 0x74, 0xa0, 0x04, 0xf4,
+            0x9e, 0x61, 0xf5, 0xd1, 0x05, 0x28, 0x4d, 0x20};
+        int test_b_len = 32;
+        mbedtls_mpi_read_binary(b, test_b, test_b_len);
+#endif
 
-       k = H_nn(alg, ng->N, ng->g);
+       k = H_nn_pad(alg, ng->N, ng->g);
 
        /* B = kv + g^b */
        mbedtls_mpi_mul_mpi( tmp1, k, v);
        mbedtls_mpi_exp_mod( tmp2, ng->g, b, ng->N, RR );
-       mbedtls_mpi_add_mpi( B, tmp1, tmp2 );
+       mbedtls_mpi_add_mpi( tmp3, tmp1, tmp2 );
+       mbedtls_mpi_mod_mpi( B, tmp3, ng->N);
+#ifdef TEST_HAP
+       test_hap_mpi_print("B", B);
+#endif
 
        u = H_nn(alg, A, B);
+#ifdef TEST_HAP
+       test_hap_mpi_print("Random Scrambling Parameter", u);
+#endif
 
        /* S = (A *(v^u)) ^ b */
        mbedtls_mpi_exp_mod(tmp1, v, u, ng->N, RR);
        mbedtls_mpi_mul_mpi(tmp2, A, tmp1);
        mbedtls_mpi_exp_mod(S, tmp2, b, ng->N, RR);
+#ifdef TEST_HAP
+       test_hap_mpi_print("Premaster Secret", S);
+#endif
 
        hash_num(alg, S, ver->session_key);
+#ifdef TEST_HAP
+       test_hap_array_print("Session Key", ver->session_key, 
+               hash_length( ver->hash_alg ));
+#endif
 
        calculate_M( alg, ng, ver->M, username, s, A, B, ver->session_key );
        calculate_H_AMK( alg, ver->H_AMK, A, ver->M, ver->session_key );
@@ -887,8 +995,20 @@ void  srp_user_start_authentication( struct SRPUser * usr, const char ** usernam
                                      const unsigned char ** bytes_A, int * len_A )
 {
 
-    mbedtls_mpi_fill_random( usr->a, 256, &mbedtls_ctr_drbg_random, &ctr_drbg_ctx);
+    mbedtls_mpi_fill_random( usr->a, 32, &mbedtls_ctr_drbg_random, &ctr_drbg_ctx);
+#ifdef TEST_HAP
+    uint8_t test_a[] = {0x60, 0x97, 0x55, 0x27, 0x03, 0x5c, 0xf2, 0xad,
+                        0x19, 0x89, 0x80, 0x6f, 0x04, 0x07, 0x21, 0x0b,
+                        0xc8, 0x1e, 0xdc, 0x04, 0xe2, 0x76, 0x2a, 0x56,
+                        0xaf, 0xd5, 0x29, 0xdd, 0xda, 0x2d, 0x43, 0x93};
+
+    int test_a_len = 32;
+    mbedtls_mpi_read_binary(usr->a, test_a, test_a_len);
+#endif
     mbedtls_mpi_exp_mod(usr->A, usr->ng->g, usr->a, usr->ng->N, RR);
+#ifdef TEST_HAP
+    test_hap_mpi_print("A", usr->A);
+#endif
 
     *len_A   = mbedtls_mpi_size(usr->A);
     *bytes_A = malloc( *len_A );
