@@ -132,19 +132,14 @@ void srp_create_B( SRP_HashAlgorithm alg, SRP_NGType ng_type,
                                         const unsigned char ** bytes_b, int * len_b,
                                         const char * n_hex, const char * g_hex );
 
-/* Out: bytes_B, len_B.
- * 
- * On failure, bytes_B will be set to NULL and len_B will be set to 0
- * 
- * The n_hex and g_hex parameters should be 0 unless SRP_NG_CUSTOM is used for ng_type
- */
+
 struct SRPVerifier *  srp_verifier_new( SRP_HashAlgorithm alg, SRP_NGType ng_type, const char * username,
-                                        const unsigned char * bytes_s, int len_s, 
+                                        const unsigned char * bytes_s, int len_s,
                                         const unsigned char * bytes_v, int len_v,
                                         const unsigned char * bytes_A, int len_A,
-                                        const unsigned char ** bytes_B, int * len_B,
+                                        const unsigned char * bytes_B, int len_B,
+                                        const unsigned char * bytes_b, int len_b,
                                         const char * n_hex, const char * g_hex );
-
 
 void                  srp_verifier_delete( struct SRPVerifier * ver );
 
